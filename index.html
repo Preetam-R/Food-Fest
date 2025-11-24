@@ -67,10 +67,13 @@
     }
     .card button:hover { background: #ff784e; }
 
-    /* order popup */
+    /* overlay + order popup */
+    .overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.45); display: none; align-items: center; justify-content: center; z-index: 40;
+    }
+    .overlay.active { display: flex; }
     #orderPopup {
-      position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%) scale(0.95);
-      background: #fff3e6; padding: 20px; border-radius: 12px; box-shadow: 0 8px 20px rgba(0,0,0,0.2); width: 320px; display: none; z-index: 40;
+      background: #fff3e6; padding: 20px; border-radius: 12px; box-shadow: 0 8px 20px rgba(0,0,0,0.2); width: 320px; color:#2b1b12;
     }
     #closeBtn { float: right; background: transparent; border: none; font-size: 20px; cursor: pointer; }
 
@@ -88,6 +91,9 @@
     /* reviews */
     .review { background:white; padding:12px; margin:10px auto; max-width:600px; border-radius:10px; box-shadow:0 4px 10px rgba(0,0,0,0.08); text-align:left; }
 
+    /* toast */
+    #toast { position:fixed; bottom:20px; right:20px; background:#333; color:white; padding:12px 18px; border-radius:8px; opacity:0; transition:opacity .35s ease, transform .35s ease; transform:translateY(20px); z-index:200; font-weight:600; }
+
     /* small responsive tweaks */
     @media (max-width:600px) {
       header { font-size:1.4rem; }
@@ -100,9 +106,9 @@
 <header>🍕 Food Carnival 2025 🎉</header>
 
 <!-- floating icons -->
-<img src="https://i.imgur.com/1Oe8Z46.png" class="float-icon" style="left:5%; bottom:-100px; animation-delay:0s;" />
-<img src="https://i.imgur.com/bdVSHxL.png" class="float-icon" style="left:40%; bottom:-120px; animation-delay:4s;" />
-<img src="https://i.imgur.com/0EwE0Hn.png" class="float-icon" style="right:10%; bottom:-140px; animation-delay:8s;" />
+<img src="https://i.imgur.com/1Oe8Z46.png" class="float-icon" style="left:5%; bottom:-100px; animation-delay:0s;" aria-hidden="true" />
+<img src="https://i.imgur.com/bdVSHxL.png" class="float-icon" style="left:40%; bottom:-120px; animation-delay:4s;" aria-hidden="true" />
+<img src="https://i.imgur.com/0EwE0Hn.png" class="float-icon" style="right:10%; bottom:-140px; animation-delay:8s;" aria-hidden="true" />
 
 <div class="container">
 
@@ -157,15 +163,20 @@
 
 </div>
 
-<!-- order popup -->
-<div id="orderPopup" role="dialog" aria-modal="true" aria-hidden="true">
-  <button id="closeBtn" aria-label="Close">✖</button>
-  <h3 id="popupFood">Food</h3>
-  <label>Enter Quantity:</label>
-  <input id="qtyInput" type="number" min="1" value="1" style="width:100%; padding:8px; border-radius:8px; margin:8px 0;">
-  <button id="confirmBtn" style="width:100%; background:#ff5733; color:white; padding:10px; border:none; border-radius:10px;">Confirm Order</button>
-  <p id="resultMsg" style="margin-top:10px; font-weight:600; color:green;"></p>
+<!-- overlay + order popup -->
+<div class="overlay" id="overlay">
+  <div id="orderPopup" role="dialog" aria-modal="true" aria-hidden="true">
+    <button id="closeBtn" aria-label="Close">✖</button>
+    <h3 id="popupFood">Food</h3>
+    <label>Enter Quantity:</label>
+    <input id="qtyInput" type="number" min="1" value="1" style="width:100%; padding:8px; border-radius:8px; margin:8px 0;">
+    <button id="confirmBtn" style="width:100%; background:#ff5733; color:white; padding:10px; border:none; border-radius:10px;">Confirm Order</button>
+    <p id="resultMsg" style="margin-top:10px; font-weight:600; color:green;"></p>
+  </div>
 </div>
+
+<!-- Toast Notification -->
+<div id="toast" aria-live="polite" style="position:fixed; bottom:20px; right:20px; background:#333; color:white; padding:12px 18px; border-radius:8px; opacity:0; transition:opacity .35s ease, transform .35s ease; transform:translateY(20px); z-index:200; font-weight:600;">Order Placed Successfully!</div>
 
 <script>
 // All initialization inside DOMContentLoaded to avoid timing errors
@@ -183,6 +194,7 @@ window.addEventListener('DOMContentLoaded', () => {
   ];
 
   const grid = document.getElementById('menuGrid');
+  const overlay = document.getElementById('overlay');
   const popup = document.getElementById('orderPopup');
   const popupFood = document.getElementById('popupFood');
   const closeBtn = document.getElementById('closeBtn');
@@ -196,14 +208,18 @@ window.addEventListener('DOMContentLoaded', () => {
     popupFood.textContent = selectedFood.name;
     resultMsg.textContent = '';
     qtyInput.value = 1;
-    popup.style.display = 'block';
+    overlay.classList.add('active');
     popup.setAttribute('aria-hidden', 'false');
   }
 
   foods.forEach((item, i) => {
     const card = document.createElement('div');
     card.className = 'card';
-    card.innerHTML = `\n      <img src="${item.img}" alt="${item.name}" />\n      <h3>${item.name}</h3>\n      <button type=\"button\">Order Now</button>\n    `;
+    card.innerHTML = `
+      <img src="${item.img}" alt="${item.name}" />
+      <h3>${item.name}</h3>
+      <button type=\"button\" aria-label=\"Order ${item.name}\">Order Now</button>
+    `;
 
     const btn = card.querySelector('button');
     btn.addEventListener('click', () => openPopup(i));
@@ -211,34 +227,56 @@ window.addEventListener('DOMContentLoaded', () => {
     grid.appendChild(card);
   });
 
-  if (closeBtn) closeBtn.addEventListener('click', () => { popup.style.display = 'none'; popup.setAttribute('aria-hidden', 'true'); selectedFood = null; });
+  if (closeBtn) closeBtn.addEventListener('click', () => { overlay.classList.remove('active'); popup.setAttribute('aria-hidden', 'true'); selectedFood = null; });
+
+  // Mobile Notification Permission (request once, user gesture recommended)
+  if ("Notification" in window && Notification.permission !== 'granted') {
+    try { Notification.requestPermission().then(p => console.log('Notification permission:', p)); } catch (e) { /* ignore */ }
+  }
 
   // Toast function
-function showToast(msg){
-  const t=document.getElementById('toast');
-  t.textContent=msg;
-  t.style.opacity='1';
-  t.style.transform='translateY(0)';
-  setTimeout(()=>{
-    t.style.opacity='0';
-    t.style.transform='translateY(20px)';
-  }, 2000);
-}
+  function showToast(msg){
+    const t=document.getElementById('toast');
+    if(!t) return;
+    t.textContent=msg;
+    t.style.opacity='1';
+    t.style.transform='translateY(0)';
+    setTimeout(()=>{
+      t.style.opacity='0';
+      t.style.transform='translateY(20px)';
+    }, 2500);
+  }
 
-confirmBtn.addEventListener('click', () => {
+  confirmBtn.addEventListener('click', () => {
     const qty = parseInt(qtyInput.value, 10) || 1;
     if (!selectedFood) {
       resultMsg.style.color = 'red';
       resultMsg.textContent = 'Please select an item before confirming.';
       return;
     }
+
     resultMsg.style.color = 'green';
     resultMsg.textContent = `✔ Order placed: ${qty} × ${selectedFood.name}`;
-    setTimeout(() => { popup.style.display = 'none'; popup.setAttribute('aria-hidden', 'true'); selectedFood = null; }, 900);
+    showToast(`Order placed: ${qty} × ${selectedFood.name}`);
+
+    // Mobile notification (will only work on https and when permission granted)
+    if ("Notification" in window && Notification.permission === "granted") {
+      try {
+        new Notification("Order Confirmed", {
+          body: `${qty} × ${selectedFood.name} placed!`,
+          icon: selectedFood.img
+        });
+      } catch (e) {
+        console.warn('Notification error', e);
+      }
+    }
+
+    setTimeout(() => { overlay.classList.remove('active'); popup.setAttribute('aria-hidden', 'true'); selectedFood = null; }, 900);
   });
 
-  window.addEventListener('click', (e) => {
-    if (e.target === popup) { popup.style.display = 'none'; popup.setAttribute('aria-hidden', 'true'); selectedFood = null; }
+  // close overlay when clicking outside popup
+  overlay.addEventListener('click', (e) => {
+    if (e.target === overlay) { overlay.classList.remove('active'); popup.setAttribute('aria-hidden', 'true'); selectedFood = null; }
   });
 
   // --- Review System (localStorage) ---
@@ -249,7 +287,7 @@ confirmBtn.addEventListener('click', () => {
     reviews.forEach(r => {
       const card = document.createElement('div');
       card.className = 'review';
-      card.innerHTML = `<p><strong>${escapeHtml(r.name)}:</strong> ${escapeHtml(r.text)} <span style=\"color:#ffb400;\">${'⭐'.repeat(r.rating)}</span></p>`;
+      card.innerHTML = `<p><strong>${escapeHtml(r.name)}:</strong> ${escapeHtml(r.text)} <span style="color:#ffb400;">${'⭐'.repeat(r.rating)}</span></p>`;
       reviewListEl.appendChild(card);
     });
   }
@@ -345,18 +383,11 @@ confirmBtn.addEventListener('click', () => {
 
   // small helper to avoid XSS in review display
   function escapeHtml(str) {
-    return String(str).replace(/[&<>\"'`]/g, (s) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":"&#39;","`":"&#96;"})[s]);
+    return String(str).replace(/[&<>\"'`]/g, (s) => ({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":"&#39;","`":"&#96;"})[s]);
   }
 
 }); // end DOMContentLoaded
 </script>
-
-
-
-<!-- Toast Notification -->
-<div id="toast" style="position:fixed; bottom:20px; right:20px; background:#333; color:white; padding:12px 18px; border-radius:8px; opacity:0; transition:opacity .5s ease, transform .5s ease; transform:translateY(20px); z-index:200; font-weight:600;">
-  Order Placed Successfully!
-</div>
 
 </body>
 </html>
